@@ -56,8 +56,8 @@ from payroll.extract import load_employees, load_export
 roster = load_employees()
 departments = list(roster["department"].unique())
 
-st.title("Salt City Coffee -- Quarterly Payroll Report")
-st.write("Upload the **weekly payroll exports** for the period you want to review -- old spreadsheet weeks and new app weeks can be mixed. The roster is loaded automatically.")
+st.title("Salt City Coffee — Quarterly Payroll Report")
+st.write("Upload the **weekly payroll exports** for the period you want to review — old spreadsheet weeks and new app weeks can be mixed. The roster is loaded automatically.")
 
 uploads = st.file_uploader(key="exports", accept_multiple_files=True, label="Upload weekly payroll exports (CSV)")
 
@@ -65,9 +65,15 @@ if uploads:
     exports = [load_export(u) for u in uploads]
     
     history = build_history(exports, roster)
+    unmatched = history[history["department"].isna()]
+    if len(unmatched) > 0:
+        ids = ", ".join(unmatched["employeeid"].unique())
+        st.warning(f"The following employees are not on the roster: {ids}")
+    history = history[history["department"].notna()]
+
     sel_departments = st.selectbox(key="department", label="Department", options=["All"] + departments)
 
-    pay_dates = history["week_ending"].unique()
+    pay_dates = history["pay_date"].dt.date
     min_date = min(pay_dates)
     max_date = max(pay_dates)
     start, end = st.date_input(label="Pay dates", min_value=min_date, max_value=max_date, value=(min_date,max_date))

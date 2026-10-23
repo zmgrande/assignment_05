@@ -1,7 +1,57 @@
-Write your reflection here.
+This assignment was a good gateway into actually utilizing data manipulation tactics on real-world
+data and building reports that are similar to what BI analysts would do in a professional setting.
 
-See reflection.md for what makes a good reflection — be specific, use the
-terminology from this assignment (grain, long vs. wide, vectorized .str methods,
-coerce, NaT, pd.to_datetime format, .dt, concat, ignore_index, group by, named
-aggregation, reset_index, pivot_table, fill_value, melt, lineage), and make it
-actionable.
+The main things I would say I learned:
+
+1. Vectorized .str cleaning instead of apply. In clean_employee_id I chained
+.str.strip().str.upper() and then rebuilt the ID as "E" + .str[1:].str.zfill(3),
+so " e004" and "E4" both become "E004". The idea that clicked is that a .str method
+runs on the whole column at once, so I never had to write a loop or a function for
+apply. In clean_number I used .str.replace("$", "", regex=False) and the same for
+",". I learned to pass regex=False because "$" means something special in a regex.
+
+2. pd.to_numeric(errors="coerce") then .fillna(0.0). Coerce turns anything that
+can't be read into NaN instead of crashing, and fillna decides what NaN should
+mean. I'm noting for myself that filling with 0 is a business decision. It works
+for hours and pay here, but it could hide bad data somewhere else.
+
+3. Parsing a column that mixes two date formats. The hand-typed weeks use
+"8/14/2026" and the app weeks use "2026-08-14". I parsed the column twice, once
+with format="%m/%d/%Y" and once with format="%Y-%m-%d", both with
+errors="coerce". Each pass turns the other format into NaT, so us.fillna(iso)
+puts the two results together. Naming the format= is better than letting pandas
+guess, because a guess can silently swap the month and the day.
+
+4. Grain vs. lineage. pd.concat(exports, ignore_index=True) stacks twelve weeks.
+Without ignore_index, every file restarts at index 0 and I would get repeated
+index labels. add_clean_columns and add_date_parts *widen* the history: same
+rows, new columns, and the original columns are kept (lineage). groupby and
+pivot_table *change the grain*. summarize_employees goes from one row per
+person per week to one row per person, and hours_grid goes to one row per person
+with one column per week. These steps build a new table and don't change the history.
+
+5. Named aggregation with a lambda. In summarize_employees I used
+overtime_weeks=("hours_worked", lambda hours: (hours > 40.0).sum()). The lambda
+gets one employee's hours as a Series, and summing a boolean Series counts the
+Trues. Then reset_index() turns the group keys back into columns.
+
+6. The pivot-then-melt round trip. This was the most interesting idea. A week where
+someone wasn't paid has no row in the source, so I can't filter for it. Pivoting
+with fill_value=0 creates a cell for every (employee, week) pair, so the missing
+weeks show up as 0. Melting the grid back to long form turns those 0s into real
+rows I can filter on (hours_worked == 0). I made rows that didn't exist before.
+
+I tried to practice on all 3 modules by adding if __name__ == "__main__": blocks to
+summarize.py and reshape.py that write history.csv and summary.csv. That let me open the intermediate tables
+and check each step of the pipeline by itself before I connected the page to it.
+
+Some of the things that I found confusing had to relate to a lot of the widget functionality
+of streamlit, and the join logic for some of the dataframes. For instance, st.date_input using a range.
+Claude pointed out that while the user is picking the range, the widget can return only one date. Then start, end = st.date_input(...)
+could crash the live page, and the tests wouldn't catch it. Next step: read the
+st.date_input docs and add a check like "if len(dates) == 2" before unpacking.
+I would like to better differentiate whether a failure is a unit test (one function's output), a pipeline test
+(lineage/grain), or a structure test. I also struggled with pivot_tables vs. pivot.
+I used pivot_table with aggfunc="sum" because it handles
+duplicate (employee, week) pairs, but I'm not completely sure when plain pivot
+would raise an error.
