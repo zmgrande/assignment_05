@@ -36,8 +36,10 @@ def format_name(names: pd.Series) -> pd.Series:
     Strip each part, then join them back together in the other order with a
     space between. Same `.str` toolkit as `clean_employee_id`; no `apply`.
     """
-    # TODO: your code here
-    pass
+    parts = names.copy().str.split(",")
+    last = parts.str[0].str.strip()
+    first = parts.str[1].str.strip()
+    return first + " " + last
 
 
 def add_roster(history: pd.DataFrame, employees: pd.DataFrame) -> pd.DataFrame:
@@ -56,8 +58,12 @@ def add_roster(history: pd.DataFrame, employees: pd.DataFrame) -> pd.DataFrame:
     history on `employee_id`. The history must have been through
     `add_clean_columns` first — the raw `employeeid` does not match anything.
     """
-    # TODO: your code here
-    pass
+    roster = employees.copy()
+    roster["display_name"] = format_name(roster["name"])
+    return pd.merge(left=history,
+                    right=roster[["employee_id", "display_name", "department"]],
+                    how="left",
+                    on="employee_id")
 
 
 def build_history(exports: list, employees: pd.DataFrame) -> pd.DataFrame:
@@ -68,8 +74,10 @@ def build_history(exports: list, employees: pd.DataFrame) -> pd.DataFrame:
     their work. The result has every raw column, every column the steps add, and
     one row per row of every export.
     """
-    # TODO: your code here
-    pass
+    all_exports = combine_exports(exports)
+    out = add_clean_columns(all_exports)
+    out = add_date_parts(out)
+    return add_roster(out, employees=employees)
 
 
 def summarize_employees(history: pd.DataFrame) -> pd.DataFrame:
@@ -100,5 +108,31 @@ def summarize_employees(history: pd.DataFrame) -> pd.DataFrame:
     of a group-by by default. The app warns about them; this function does not
     need to.
     """
-    # TODO: your code here
-    pass
+    out = history.groupby(
+        ["employee_id", "display_name", "department"]
+    ).agg(
+        weeks_paid=("week_ending", "count"),
+        total_hours=("hours_worked", "sum"),
+        total_pay=("gross_pay", "sum"),
+        avg_hours=("hours_worked", "mean"),
+        overtime_weeks=("hours_worked", lambda hours: (hours > 40.0).sum()),
+    ).reset_index()
+
+    out["avg_hours"] = out["avg_hours"].round(2)
+    out["total_pay"] = out["total_pay"].round(2)
+    return out.sort_values("employee_id").reset_index(drop=True)
+
+
+if __name__ == "__main__":
+    from .extract import load_all_exports, load_employees
+    from pathlib import Path
+
+    exports = load_all_exports()
+    employees = load_employees()
+    history = build_history(exports, employees)
+
+    summary = summarize_employees(history)
+
+    ROOT = Path(__file__).resolve().parent
+    history.to_csv(ROOT / "history.csv", index=False)
+    summary.to_csv(ROOT / "summary.csv", index=False)

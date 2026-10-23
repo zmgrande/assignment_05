@@ -44,3 +44,68 @@ Test it: pytest tests/test_pipeline.py -k app
 #
 # What the page does NOT do: cleaning, grouping, pivoting. If you find yourself
 # writing a groupby or a pivot_table here, that logic belongs in the package.
+
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+
+from payroll.summarize import build_history, summarize_employees
+from payroll.reshape import pay_by_month, hours_grid, missed_weeks
+from payroll.extract import load_employees, load_export
+
+roster = load_employees()
+departments = list(roster["department"].unique())
+
+st.title("Salt City Coffee -- Quarterly Payroll Report")
+st.write("Upload the **weekly payroll exports** for the period you want to review -- old spreadsheet weeks and new app weeks can be mixed. The roster is loaded automatically.")
+
+uploads = st.file_uploader(key="exports", accept_multiple_files=True, label="Upload weekly payroll exports (CSV)")
+
+if uploads:
+    exports = [load_export(u) for u in uploads]
+    
+    history = build_history(exports, roster)
+    sel_departments = st.selectbox(key="department", label="Department", options=["All"] + departments)
+
+    pay_dates = history["week_ending"].unique()
+    min_date = min(pay_dates)
+    max_date = max(pay_dates)
+    start, end = st.date_input(label="Pay dates", min_value=min_date, max_value=max_date, value=(min_date,max_date))
+
+    st.subheader(f"{sel_departments} · {start} to {end}")
+
+    # Build filtered DataFrame
+    
+    filtered = history.copy()
+    filtered = filtered[filtered["week_ending"].between(start.isoformat(), end.isoformat())]
+    if sel_departments != "All":
+        filtered = filtered[filtered["department"] == sel_departments]
+
+    weeks, employees, total_hours, total_gross_pay = st.columns(4)
+    with weeks:
+        st.metric("Weeks", value=len(filtered["week_ending"].unique()))
+    with employees:
+        st.metric("Employees", value=len(filtered["employee_id"].unique()))
+    
+    with total_hours:
+        st.metric("Total hours", f"{filtered["hours_worked"].sum():,.2f}")
+    with total_gross_pay:
+        st.metric("Total gross pay", f"${filtered["gross_pay"].sum().round(2):,.2f}")
+
+    st.subheader("Gross pay by month")
+    st.bar_chart(pay_by_month(filtered), x="month")
+
+    st.subheader("Employees")
+    st.dataframe(summarize_employees(filtered), hide_index=True)
+
+    st.subheader("Hours by week")
+    grid = hours_grid(filtered)
+    st.dataframe(grid, hide_index=True)
+
+    st.subheader("Missed weeks")
+    st.dataframe(missed_weeks(grid), hide_index=True)
+
+    st.download_button(label="Download pay by month for the accountant (CSV)",
+                       key="download",
+                       data=pay_by_month(filtered).to_csv(index=False),
+                       file_name="pay_by_month.csv")
