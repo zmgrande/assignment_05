@@ -39,7 +39,7 @@ def hours_grid(history: pd.DataFrame) -> pd.DataFrame:
         values="hours_worked",
         aggfunc="sum",
         fill_value=0)
-    
+
     return pivot.reset_index().sort_values(
         "employee_id", ignore_index=True
     )
@@ -89,6 +89,7 @@ def pay_by_month(history: pd.DataFrame) -> pd.DataFrame:
 
     return out
 
+
 if __name__ == "__main__":
     from pathlib import Path
 
@@ -98,4 +99,3 @@ if __name__ == "__main__":
     # x = hours_grid(history)
     # x.to_csv(ROOT / "hours_grid.csv")
     print(pay_by_month(history))
-    

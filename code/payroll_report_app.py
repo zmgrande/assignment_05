@@ -46,8 +46,6 @@ Test it: pytest tests/test_pipeline.py -k app
 # writing a groupby or a pivot_table here, that logic belongs in the package.
 
 import streamlit as st
-import pandas as pd
-from datetime import datetime
 
 from payroll.summarize import build_history, summarize_employees
 from payroll.reshape import pay_by_month, hours_grid, missed_weeks
@@ -57,13 +55,21 @@ roster = load_employees()
 departments = list(roster["department"].unique())
 
 st.title("Salt City Coffee — Quarterly Payroll Report")
-st.write("Upload the **weekly payroll exports** for the period you want to review — old spreadsheet weeks and new app weeks can be mixed. The roster is loaded automatically.")
+st.write(
+    "Upload the **weekly payroll exports** for the period you want to review — "
+    "old spreadsheet weeks and new app weeks can be mixed. "
+    "The roster is loaded automatically."
+)
 
-uploads = st.file_uploader(key="exports", accept_multiple_files=True, label="Upload weekly payroll exports (CSV)")
+uploads = st.file_uploader(
+    key="exports",
+    accept_multiple_files=True,
+    label="Upload weekly payroll exports (CSV)",
+)
 
 if uploads:
     exports = [load_export(u) for u in uploads]
-    
+
     history = build_history(exports, roster)
     unmatched = history[history["department"].isna()]
     if len(unmatched) > 0:
@@ -71,19 +77,28 @@ if uploads:
         st.warning(f"The following employees are not on the roster: {ids}")
     history = history[history["department"].notna()]
 
-    sel_departments = st.selectbox(key="department", label="Department", options=["All"] + departments)
+    sel_departments = st.selectbox(
+        key="department", label="Department", options=["All"] + departments
+    )
 
     pay_dates = history["pay_date"].dt.date
     min_date = min(pay_dates)
     max_date = max(pay_dates)
-    start, end = st.date_input(label="Pay dates", min_value=min_date, max_value=max_date, value=(min_date,max_date))
+    start, end = st.date_input(
+        label="Pay dates",
+        min_value=min_date,
+        max_value=max_date,
+        value=(min_date, max_date),
+        key="dates"
+    )
 
     st.subheader(f"{sel_departments} · {start} to {end}")
 
     # Build filtered DataFrame
-    
+
     filtered = history.copy()
-    filtered = filtered[filtered["week_ending"].between(start.isoformat(), end.isoformat())]
+    in_range = filtered["week_ending"].between(start.isoformat(), end.isoformat())
+    filtered = filtered[in_range]
     if sel_departments != "All":
         filtered = filtered[filtered["department"] == sel_departments]
 
@@ -92,7 +107,7 @@ if uploads:
         st.metric("Weeks", value=len(filtered["week_ending"].unique()))
     with employees:
         st.metric("Employees", value=len(filtered["employee_id"].unique()))
-    
+
     with total_hours:
         st.metric("Total hours", f"{filtered["hours_worked"].sum():,.2f}")
     with total_gross_pay:

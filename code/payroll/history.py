@@ -85,7 +85,11 @@ def clean_number(values: pd.Series) -> pd.Series:
       methods do the looping for you.
     """
     cleaned_vals = values.copy()
-    cleaned_vals = cleaned_vals.str.strip().str.replace("$", "", regex=False).str.replace(",", "", regex=False)
+    cleaned_vals = (
+        cleaned_vals.str.strip()
+        .str.replace("$", "", regex=False)
+        .str.replace(",", "", regex=False)
+    )
     cleaned_vals = pd.to_numeric(cleaned_vals, errors="coerce").fillna(0.0)
     return cleaned_vals
 
@@ -118,7 +122,6 @@ def parse_pay_date(values: pd.Series) -> pd.Series:
     iso = pd.to_datetime(values, format="%Y-%m-%d", errors="coerce")
     cleaned = us.fillna(iso)
     return cleaned
-
 
 
 def combine_exports(exports: list) -> pd.DataFrame:
